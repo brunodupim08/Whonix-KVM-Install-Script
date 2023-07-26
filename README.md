@@ -14,4 +14,4 @@ Make sure the "whonix-kvm-install-script.sh" has executable permissions. If it's
 #### Run the Script
 Finally, run the script at the same location as the Whonix  kvm compacted file downloaded:
 
-    ./whonix-kvm-install-script.sh
+    sudo ./whonix-kvm-install-script.sh
