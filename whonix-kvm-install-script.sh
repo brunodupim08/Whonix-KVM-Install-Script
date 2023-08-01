@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-version='1.0'
+version='1.1'
 
 # Check if the user has UID 0 (root)
 if [ "$EUID" -ne 0 ]; then
@@ -19,10 +19,8 @@ extract(){
     if [ ${#whonix_archives[@]} -eq 0 ]; then
         echo "Error: No Whonix archive (*.libvirt.xz) found in this directory."
         exit 2
-    fi
-
     # If there are multiple archives, prompt the user to choose one
-    if [ ${#whonix_archives[@]} -gt 1 ]; then
+    elif [ ${#whonix_archives[@]} -gt 1 ]; then
         echo "Multiple Whonix archives found:"
         select chosen_archive in "${whonix_archives[@]}"; do
             if [ -n "$chosen_archive" ]; then
@@ -40,9 +38,8 @@ extract(){
 
     # Create whonix-install directory
     mkdir -p /tmp/whonix-install
-
     # Extract the chosen file from the archive into whonix-install directory
-    tar -xvf "$chosen_archive" -C /tmp/whonix-install 2>/dev/null || { echo "Error: Failed to extract the chosen archive."; exit 2; }
+    tar -xvf "$chosen_archive" -C /tmp/whonix-install 2>/dev/null || { echo "Error: Failed to extract the chosen archive."; exit 3; }
 
 }
 
@@ -70,7 +67,6 @@ import_networks(){
     # Ask the user which number to use for virbr1 and virbr2
     read -rp "Enter the number to use for virbr Whonix-External (default: 1): " number_virbr1
     number_virbr1=${number_virbr1:-1}
-
     read -rp "Enter the number to use for virbr Whonix-Internal (default: 2): " number_virbr2
     number_virbr2=${number_virbr2:-2}
 
@@ -95,9 +91,7 @@ import_images() {
     # Check if the VM images exist and prompt for removal
     images_to_remove=()
     for vm_name in "Whonix-Gateway" "Whonix-Workstation"; do
-        if virsh domstate "$vm_name" | grep -q "running"; then
-            virsh destroy "$vm_name" >/dev/null 2>&1 && echo "Domain '$vm_name' has been destroyed."
-        elif virsh dominfo "$vm_name" &>/dev/null; then
+        if virsh dominfo "$vm_name" &>/dev/null; then
             images_to_remove+=("$vm_name")
         fi
     done
@@ -108,6 +102,9 @@ import_images() {
             case $answer in
                 [Yy])
                     for vm_name in "${images_to_remove[@]}"; do
+                        if virsh domstate "$vm_name" | grep -q "running"; then
+                            virsh destroy "$vm_name" >/dev/null 2>&1 && echo "Domain '$vm_name' has been destroyed."
+                        fi
                         virsh undefine "$vm_name" >/dev/null 2>&1 && echo "Domain '$vm_name' has been undefined."
                         rm -f "/var/lib/libvirt/images/$vm_name.qcow2" >/dev/null 2>&1 && echo "Image '/var/lib/libvirt/images/$vm_name.qcow2' removed."
                     done
@@ -122,14 +119,13 @@ import_images() {
             esac
         done
     fi
-
-    # Import the Whonix ™ Gateway and Workstation images.
-    virsh define Whonix-Gateway*.xml >/dev/null 2>&1 && echo "Domain 'Whonix-Gateway' defined from Whonix-Gateway-Xfce-17.0.3.0.xml."
-    virsh define Whonix-Workstation*.xml >/dev/null 2>&1 && echo "Domain 'Whonix-Workstation' defined from Whonix-Workstation-Xfce-17.0.3.0.xml."
-
+    
     # Move the images to /var/lib/libvirt/images/ with new name.
     mv Whonix-Gateway*.qcow2 /var/lib/libvirt/images/Whonix-Gateway.qcow2 >/dev/null 2>&1
     mv Whonix-Workstation*.qcow2 /var/lib/libvirt/images/Whonix-Workstation.qcow2 >/dev/null 2>&1
+    # Import the Whonix ™ Gateway and Workstation images.
+    virsh define Whonix-Gateway*.xml >/dev/null 2>&1 && echo "Domain 'Whonix-Gateway' defined from Whonix-Gateway-Xfce-17.0.3.0.xml."
+    virsh define Whonix-Workstation*.xml >/dev/null 2>&1 && echo "Domain 'Whonix-Workstation' defined from Whonix-Workstation-Xfce-17.0.3.0.xml."
 }
 
 logo() {
@@ -145,11 +141,12 @@ logo() {
     Whonix KVM Install Script'
     echo -e "    version: $version\n    Altor: https://github.com/brunodupim08\n"
 }
-#Run
+
+#--------------------- Run -------------------#
 logo
 extract
 # Enter the whonix-install directory
-cd /tmp/whonix-install || exit 1
+cd /tmp/whonix-install || exit 4
 import_networks
 import_images
 # Return to the original directory
@@ -158,4 +155,3 @@ cd ..
 rm -rf whonix-install
 echo -e "\n#### Whonix setup completed successfully. ####\n"
 exit 0
-
